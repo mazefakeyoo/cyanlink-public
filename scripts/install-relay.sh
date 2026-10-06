@@ -8,6 +8,9 @@
 #
 # 说明: 脚本只负责把 frps 装好并拉起；安装是否成功由 CyanLink 主动探测
 #       frps 控制端口（bind_port）确认。请确保安全组/防火墙放行 bind_port。
+# 权限: 需要 root；非 root 执行时自动走 sudo（需免密 sudo 或交互终端输密码）。
+# 注意: 单台服务器仅支持一个中继实例（固定 /etc/cyanlink/frps.toml 与
+#       cyanlink-relay 单元）；重复执行即为改配重装，会自动重启服务。
 set -euo pipefail
 
 BIND_PORT="" FRPS_TOKEN=""
@@ -28,6 +31,14 @@ done
   echo "缺少 --bind-port / --frps-token" >&2; exit 1;
 }
 
+# 非 root 时全部特权操作走 sudo（curl | bash 场景无法自重执行，统一前缀最稳）
+SUDO=""
+if [[ "$(id -u)" -ne 0 ]]; then
+  command -v sudo >/dev/null 2>&1 || { echo "错误：安装需要 root 或 sudo 权限" >&2; exit 1; }
+  SUDO="sudo"
+  echo "==> 当前为非 root 用户，特权操作将使用 sudo"
+fi
+
 echo "==> CyanLink 远程中继安装（bindPort=${BIND_PORT}）"
 
 ARCH=$(uname -m)
@@ -46,20 +57,20 @@ if ! command -v frps >/dev/null 2>&1; then
   # 且 bash 会剥离 NUL 字节导致二进制损坏。
   EXTRACT_DIR="$(mktemp -d)"
   tar -xzf "$TGZ" -C "$EXTRACT_DIR" "frp_${FRP_VERSION}_linux_${FRP_ARCH}/frps"
-  install -m 0755 "$EXTRACT_DIR/frp_${FRP_VERSION}_linux_${FRP_ARCH}/frps" /usr/local/bin/frps
+  $SUDO install -m 0755 "$EXTRACT_DIR/frp_${FRP_VERSION}_linux_${FRP_ARCH}/frps" /usr/local/bin/frps
   rm -rf "$EXTRACT_DIR" "$TGZ"
 fi
 
 echo "==> 写入 /etc/cyanlink/frps.toml"
-mkdir -p /etc/cyanlink
-cat > /etc/cyanlink/frps.toml <<CFG
+$SUDO mkdir -p /etc/cyanlink
+$SUDO tee /etc/cyanlink/frps.toml >/dev/null <<CFG
 bindAddr = "0.0.0.0"
 bindPort = ${BIND_PORT}
 auth.token = "${FRPS_TOKEN}"
 CFG
 
 echo "==> 注册 systemd 服务 cyanlink-relay"
-cat > /etc/systemd/system/cyanlink-relay.service <<UNIT
+$SUDO tee /etc/systemd/system/cyanlink-relay.service >/dev/null <<UNIT
 [Unit]
 Description=CyanLink relay (frps)
 After=network-online.target
@@ -72,10 +83,10 @@ RestartSec=3
 [Install]
 WantedBy=multi-user.target
 UNIT
-systemctl daemon-reload
-systemctl enable cyanlink-relay >/dev/null
+$SUDO systemctl daemon-reload
+$SUDO systemctl enable cyanlink-relay >/dev/null
 # 幂等重装：enable --now 不会重启已运行的 unit，改配后必须显式 restart 才能生效
-systemctl restart cyanlink-relay
+$SUDO systemctl restart cyanlink-relay
 
 echo "==> 完成：frps 已运行。请在云安全组/防火墙放行 TCP ${BIND_PORT}，"
 echo "    CyanLink 探测通过后实例将自动显示在线。"
