@@ -22,7 +22,7 @@ curl -fsSL https://raw.githubusercontent.com/mazefakeyoo/cyanlink-public/main/sc
 说明：
 
 - 脚本只负责把 frps 装好并拉起（systemd 单元 `cyanlink-relay`）；安装是否成功由 CyanLink 主动探测 `bind_port` 确认，脚本不做任何回调。
-- `--frp-dl-base` 省略时默认取本仓库 Release；下载失败自动回退 frp 官方 GitHub Release。
+- `--frp-dl-base` 省略时默认直接从 frp 官方 GitHub Release 下载（任意版本可用）；如需自建镜像，传入自定义 base 即可，下载失败自动回退官方源。
 - 单台服务器只支持一个中继实例（脚本使用固定的 `/etc/cyanlink/frps.toml` 与 `cyanlink-relay` 单元；重复执行即为改配重装，会自动重启服务）。
 - 重复执行幂等：重写配置并 `systemctl restart`。
 - 请在防火墙/安全组放行 `bind_port`。

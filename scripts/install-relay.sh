@@ -12,7 +12,7 @@ set -euo pipefail
 
 BIND_PORT="" FRPS_TOKEN=""
 FRP_VERSION="${FRP_VERSION:-0.61.2}"
-FRP_DL_BASE="${FRP_DL_BASE:-https://github.com/mazefakeyoo/cyanlink-public/releases/download}"
+FRP_DL_BASE="${FRP_DL_BASE:-https://github.com/fatedier/frp/releases/download}"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
